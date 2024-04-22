@@ -1,4 +1,4 @@
-function set_enrichment_analysis(group1,group2,rois,annotations,filename)
+function set_enrichment_analysis(exp_grp,ctrl_grp,rois,weights,filename)
 %% ---- Compute Set Enrichment Analysis on Regional SUVR Data Between Two Groups ----
 % INPUTS:
 %           group1:         tier1 connectomic output from covnet_workflow.m, should contain experimental group data
@@ -6,17 +6,15 @@ function set_enrichment_analysis(group1,group2,rois,annotations,filename)
 %           rois:           regions of interest, must have same row
 %                           dimension as input data, stored in a .mat file
 %                           with ROI variable named 'ROIs'
-%           annotations:    functional annotations weighted for each region, stored in a .mat file with variable 'reg2func' 
+%           annotations:    functional annotations weighted for each region, stored in a .mat file with variable 'annotations' 
 %           filename:       name of the output file that you choose
 %                           Ex: '<Study>_Functional_Determination.mat'                            
 
-%% Version Control: Charles Burton, IU School of Medicine, 2024
-
 %% Load in tier1 connectomic output data
-exp = load(group1);
-ctrl = load(group2);
-load(annotations,annotations);
-load(rois); %#ok<*LOAD>
+exp = load(exp_grp);
+ctrl = load(ctrl_grp);
+load(weights,annotations);
+load(rois,ROIs);
 beta = array2table(annotations);
 location = pwd;
 outlocation = strcat(location,'/',filename);
@@ -69,8 +67,9 @@ end
 % NOTE: We want to be able to specify this from the input in some capacity
 % or else you will have to come in here and specify your control cell(s)
 % for every run
-control_group_F = Mean_Region_Ctrl{2,3};
-control_group_M = Mean_Region_Ctrl{2,2};
+%12mo B6 as Partition Structure
+control_group_F = Mean_Region_Ctrl{7,3};
+control_group_M = Mean_Region_Ctrl{7,2};
 difference={};
 for i=2:rw1
     diff = Mean_Region_Exp{i,2}-control_group_M;
@@ -104,10 +103,10 @@ for i=2:length(exp.rNames)
     sorted_diff{i,1} = exp.rNames(i,1);
 end
 % Add in MRCC Module Data to the tables for all Cohorts, sort SUVR in ascending order
-header = ["ROIs" "Differential Value" "Module" "Z-Score" "Auditory" "Learning" "Motor" "Perception" "Sensory" "Integration" "Visual"];
+header = ["ROIs" "Differential Value" "Control Module" "Z-Score" "Auditory" "Learning" "Motor" "Perception" "Sensory" "Integration" "Visual"];
 for i=2:rw
-    diff_table1 = table(ROIs,difference{i,2},exp.mrccPartition{i,2},Z{i,2});
-    diff_table2 = table(ROIs,difference{i,3},exp.mrccPartition{i,3},Z{i,3});
+    diff_table1 = table(ROIs,Mean_Region_Exp{i,2},ctrl.mrccPartition{7,2},Z{i,2});
+    diff_table2 = table(ROIs,Mean_Region_Exp{i,3},ctrl.mrccPartition{7,3},Z{i,3});
     diff_table1 = [diff_table1 beta];
     diff_table2 = [diff_table2 beta];
     diff_table1.Properties.VariableNames = header;
@@ -117,15 +116,6 @@ for i=2:rw
     sorted_diff{i,2} = sortit1;
     sorted_diff{i,3} = sortit2;
 end
-
-%% Optional (For validation of automated quantification): Write out cohort tables into Excel spreadsheets
-% [rw,cl] = size(sorted_diff);
-% for i=2:rw
-%     for j=2:cl
-%         fileout = ['regional ontology data ' char(sorted_diff{1,1}) ' ' char(sorted_diff{i,1}) ' ' char(sorted_diff{1,j}) '.xlsx'];
-%         writetable(sorted_diff{i,j},fileout, 'FileType','spreadsheet');
-%     end
-% end
 
 %% Separate modules within each cohort
 % generate nested cell array for every cohort containing sorted vectors by
@@ -259,11 +249,11 @@ for i=2:rw
             end
         set_of_scores = ["auditory" auditory; "learning" learning; "motor" motor; "perception" perception; "sensory" sensory; "integration" integration; "visual" visual];
         fcn_scores{i,j} = set_of_scores;
-        auditory = 0; %#ok<*NASGU>
+        auditory = 0;
         learning = 0;
         motor = 0;
         perception = 0;
-        sensory = 0;
+        sensory = 0; %#ok<*NASGU>
         integration = 0;
         visual = 0;
         end
@@ -629,6 +619,9 @@ for i=2:rw
 end
 ks_global{1,1} = "Two-sample Global KS Test";
 
+%% Add in a display section that immediately notifies you if you have significant outputs in your testing
+
+
 %% Write out to .mat
-save(outlocation, "ks_global","ks_complement","exp","ctrl")
+save(outlocation,"fcn_scores","fcn_scores_complement","ks_global","ks_complement","exp","ctrl")
 end
